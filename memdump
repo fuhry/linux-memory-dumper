@@ -40,14 +40,17 @@ for pid in ${pids[@]}; do
 done
 
 # sort by exe and by user
+set +e
 for pid in ${pids[@]}; do
 	test -d "$outdir/by-pid/$pid" || continue
 	
 	exe="`readlink -f /proc/$pid/exe`"
-	exe="`basename $exe`"
-	if [ -n "$exe" ]; then
-		test -d "$outdir/by-exe/$exe" || mkdir -p "$outdir/by-exe/$exe"
-		ln -sf "../../by-pid/$pid" "$outdir/by-exe/$exe/$pid"
+	if test -n "$exe"; then
+		exe="`basename $exe`"
+		if [ -n "$exe" ]; then
+			test -d "$outdir/by-exe/$exe" || mkdir -p "$outdir/by-exe/$exe"
+			ln -sf "../../by-pid/$pid" "$outdir/by-exe/$exe/$pid"
+		fi
 	fi
 	
 	user="`stat -c %U /proc/$pid`"
