@@ -1,0 +1,150 @@
+# :mode=shellscript:
+set -e
+
+usage()
+{
+	cat <<EOF >&2
+Linux memory dumping utility - http://github.com/fuhry/linux-memory-dumper
+Written by Dan Fuhry <dan@fuhry.com>
+
+Usage: $0 [arguments]
+
+Possible options:
+  -o/--outdir        Set output directory; defaults to ./`hostname`-`date +%Y%m%d` (dynamic)
+
+EOF
+
+	exit 1
+
+}
+
+parse_args()
+{
+	outdir="./`hostname`-`date +%Y%m%d`"
+	while test -n "$1" ; do
+		case "$1" in
+			-o|--outdir)
+				shift
+				outdir="$1"
+				;;
+			*)
+				usage
+				;;
+		esac
+		
+		shift
+	done
+}
+
+fail_with_error()
+{
+	( echo -en "\e[1;31m[E]\e[0m "; echo "$1") | fold -sw `tput cols` >&2
+	exit 1
+}
+
+warn()
+{
+	( echo -en "\e[1;33m[W]\e[0m "; echo "$1") | fold -sw `tput cols` >&2
+}
+
+check_environment()
+{
+	test "`uname`" = Linux || fail_with_error "This utility uses the /proc filesystem, so you can only use it on Linux systems."
+	test "$EUID" -eq 0 || warn "You are not running this script as root. We'll try to dump processes from the current user ($USER). No promises!"
+	
+	# knowing the page size means we can dump with that block size instead of single bytes. This is
+	# because memory always allocated in chunks that are a multiple of the page size.
+	pagesize=`getconf PAGESIZE`
+}
+
+populate_pid_list()
+{
+	echo -n "Scanning /proc..."
+	pids=()
+	for d in /proc/[0-9]*; do
+		# ensure it is actually a process
+		if test -d "$d" && basename "$d" | egrep -q '^[0-9]+$'; then
+			# if we're not root, only push to the pid list if it's a process under the current user
+			if test $EUID -eq 0 -o `stat -c %u "$d"` -eq $EUID; then
+				pids=(${pids[@]} `basename "$d"`)
+			fi
+		fi
+	done
+	echo -en "\r"
+}
+
+dump_process()
+{
+	local pid="$1"
+	local dir="$2"
+	
+	# save command line
+	cp /proc/$pid/cmdline "$dir/"
+	
+	# directories for libs and user data
+	mkdir -p "$dir/memory/shared-libs" "$dir/memory/user"
+	
+	# make sure the maps file is readable
+	if ! cat /proc/$pid/maps > /dev/null 2>&1; then
+		warn "Cannot read maps file for pid $pid (permission denied)"
+		return 1
+	fi
+	
+	# start parsing maps file
+	cat /proc/$pid/maps | while read line; do
+		range=`echo $line | awk '{print $1;}'`
+		perms=`echo $line | awk '{print $2;}'`
+		what=`echo $line | awk '{print $6;}'`
+		
+		rangestart=`echo $range | cut -d- -f1`
+		
+		# For now, I'm only dumping portions of memory which are writable - that is, user data. Not much point in dumping assembly code, methinks.
+		# I'm also making sure that dumped regions are marked readable, otherwise dd fails causing the script to exit.
+		if test "${perms:1:1}" = "w" -a "${perms:0:1}" = "r"; then
+			case "$what" in
+			"")
+				dump_range "/proc/$pid/mem" "$range" "$dir/memory/user/user@$rangestart"
+				;;
+			"[heap]")
+				dump_range "/proc/$pid/mem" "$range" "$dir/memory/user/heap@$rangestart"
+				;;
+			"[stack]")
+				dump_range "/proc/$pid/mem" "$range" "$dir/memory/user/stack@$rangestart"
+				;;
+			*.so*)
+				libname=`basename "$what"`
+				dump_range "/proc/$pid/mem" "$range" "$dir/memory/shared-libs/$libname@$rangestart"
+				;;
+			esac
+		fi
+	done
+}
+
+dump_range()
+{
+	local image="$1"
+	local range="$2"
+	local outf="$3"
+	
+	rangestart=$(( 0x`echo $range | cut -d- -f1` ))
+	rangeend=$(( 0x`echo $range | cut -d- -f2` ))
+	
+	rangesize=$(( $rangeend - $rangestart ))
+	
+	# sanity check
+	if test $(( $rangestart % $pagesize )) -gt 0 -o \
+		$(( $rangeend % $pagesize )) -gt 0 -o \
+		$(( $rangesize % $pagesize )) -gt 0; then
+		fail_with_error "pid $pid region at $rangestart is not a multiple of $pagesize"
+	fi
+	
+	# divide everything by the page size
+	rangestart=$(( $rangestart / $pagesize ))
+	rangeend=$(( $rangeend / $pagesize ))
+	rangesize=$(( $rangesize / $pagesize ))
+	
+	# dump!
+	set +e
+	dd if="$image" bs="$pagesize" skip="$rangestart" count="$rangesize" of="$outf" 2>/dev/null
+	set -e
+}
