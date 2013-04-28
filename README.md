@@ -1,5 +1,5 @@
 # What is this... thing?
-This is a script which dumps as much allocated memory as possible from a running Linux system. The primary target is user data, which is what most forensic investigations target.
+This is a script which dumps as much allocated memory as possible from a running Linux system. The primary target is user data, which is what most forensic investigations are looking for anyway.
 
 # How does it work?
 By parsing /proc/<pid>/maps and dumping the regions described in there from /proc/<pid>/mem.
@@ -16,6 +16,10 @@ This script collects its list of PIDs at start-up, and then scans through each o
 It's slow as balls right now, I think because access to /proc is slow on my system, which is pretty up-to-date (kernel 3.8.4) probably because the kernel generates maps files and such on the fly.
 
 It probably will not obtain dm-crypt encryption keys, as those are likely to be stored in the memory of kernel threads, but those can easily be obtained (if you have root) with "dmsetup table --showkeys". Like I said, there's a whole array of steps you'd want to run on a system you're examining, and this tool is only one of them, and does not attempt to be a one-stop forensics tool.
+
+Everything about this script is also based on virtual memory addresses, not physical. This will complicate the process of verifying results. Memory imaging in general is, in my opinion, very difficult to verify because RAM by its very nature is constantly changing, and it is impossible to image a box's memory without changing it in some way. Thus, the ability of this tool's output to stand up in court is questionable.
+
+This tool is not intended to image every byte on the box, and is incapable of doing so. This applies in particular to free (unallocated) and I/O cache memory.
 
 # Disclaimer
 I've written this utility in good faith. It's open source, you can see exactly how it gathers its data, and you can go back to the Linux kernel docs or even the kernel source to examine its behavior. All this said, I cannot and will not be held liable for any inaccurate results returned by this tool, nor is any warranty provided (please see the license below).
