@@ -14,7 +14,7 @@ For a forensics class, and generally because there's a lack of memory dumping ut
 
 ## Scope
 
-My tool is not a replacement for /dev/mem. It dumps allocated memory from currently running user-space processes. The following are not dumped:
+My tool is not a replacement for /dev/mem. It dumps allocated memory from currently running user-space processes. The following are not dumped (this is not an exhaustive list):
 
 * Unallocated pages
 * Kernel threads
@@ -22,7 +22,7 @@ My tool is not a replacement for /dev/mem. It dumps allocated memory from curren
 * Files mapped with mmap()
 * processes which restrict the use of ptrace(2)
 
-It is also not a one-stop magical forensic report generator. If you think otherwise, consider a different career. Alongside the use of this tool you should be collecting lots more information from the systemm, the specifics of which are outside the scope of this document.
+It is also not a one-stop magical forensic report generator. If you think otherwise, consider a different career. Alongside the use of this tool you should be collecting lots more information from the system, the specifics of which are outside the scope of this document.
 
 ## Technical
 
@@ -48,7 +48,7 @@ Also, if you are a forensic examiner, please do not exclude the possibility that
 # License
 The MIT License (MIT)
 
-Copyright (c) 2013 Dan Fuhry <dan@fuhry.com>
+Copyright (c) 2013 Dan Fuhry (dan@fuhry.com)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
 
